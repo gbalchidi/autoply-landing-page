@@ -19,7 +19,7 @@ RUN npm ci
 COPY . .
 
 # Next.js telemetry is disabled
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
@@ -27,24 +27,28 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application - standalone output creates these files
-COPY --from=builder /app/public ./public
+# Copy standalone application
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+
+# Copy static files (must be after standalone copy)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy public folder (IMPORTANT: must be copied to root where server.js is)
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # server.js is at the root when using standalone
 CMD ["node", "server.js"]
