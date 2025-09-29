@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "node .next/standalone/server.js",
-    "start:next": "next start"
+    "start": "next start"
   },
   "dependencies": {
     "react": "19.1.0",
