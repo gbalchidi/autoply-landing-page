@@ -1,0 +1,72 @@
+name: Deploy to Self-Hosted Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up environment variables
+        run: |
+          echo "IMAGE_NAME=autoply-landing-page" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=autoply-landing-page" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Build Docker image
+        run: |
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+          docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+
+      - name: Stop and remove existing container
+        run: |
+          if [ $(docker ps -aq -f name=$CONTAINER_NAME) ]; then
+            echo "Stopping existing container..."
+            docker stop $CONTAINER_NAME || true
+            echo "Removing existing container..."
+            docker rm $CONTAINER_NAME || true
+          else
+            echo "No existing container found"
+          fi
+
+      - name: Run new container
+        run: |
+          docker run -d \
+            --name $CONTAINER_NAME \
+            --restart unless-stopped \
+            -p 3000:3000 \
+            $IMAGE_NAME:latest
+
+      - name: Verify container is running
+        run: |
+          sleep 5
+          if [ $(docker ps -q -f name=$CONTAINER_NAME) ]; then
+            echo "✅ Container is running successfully"
+            docker ps -f name=$CONTAINER_NAME
+          else
+            echo "❌ Container failed to start"
+            docker logs $CONTAINER_NAME
+            exit 1
+          fi
+
+      - name: Clean up old Docker images
+        run: |
+          echo "Cleaning up old images (keeping last 3)..."
+          docker images $IMAGE_NAME --format "{{.ID}} {{.CreatedAt}}" | \
+            sort -rk 2 | \
+            awk 'NR>3 {print $1}' | \
+            xargs -r docker rmi || true
+          echo "Cleanup completed"
+
+      - name: Show deployment info
+        run: |
+          echo "🚀 Deployment completed successfully!"
+          echo "📦 Image: $IMAGE_NAME:$IMAGE_TAG"
+          echo "🔧 Container: $CONTAINER_NAME"
+          echo "🌐 Application running on port 3000"
